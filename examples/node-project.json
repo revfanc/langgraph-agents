@@ -1,0 +1,16 @@
+{
+  "setup": [
+    { "name": "install", "command": "npm", "args": ["ci"], "timeoutMs": 600000 }
+  ],
+  "checks": [
+    { "name": "typecheck", "command": "npm", "args": ["run", "typecheck"] },
+    { "name": "test", "command": "npm", "args": ["test"], "timeoutMs": 300000 },
+    {
+      "name": "build",
+      "command": "npm",
+      "args": ["run", "build"],
+      "timeoutMs": 300000
+    }
+  ],
+  "rules": ["AGENTS.md"]
+}

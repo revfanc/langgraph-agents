@@ -1,72 +1,46 @@
-# LangGraph agent 编排
+# 本地开发编排工具
 
-## 目标与范围
+用户已确认：单人、本地、多仓库；接入真实 coding agent，完成代码修改、验证、失败修复与断点恢复，不绑定具体项目。
 
-在 `D:\github\langgraph-agents` 创建独立 TypeScript / Node.js 项目。提供可运行、可替换角色实现的 LangGraph 编排基础：用户目标 → planner → executor → reviewer → 通过或修订。
+## 首版交付
 
-- planner 生成 1–6 个计划步骤；executor 根据计划生成文本成果。
-- reviewer 输出审核结论与具体反馈；不通过时携带上次成果和反馈再次执行。
-- 默认最多执行 3 次（含首次），可设为 1–5 次。达到上限返回 `revision_limit`，不得标记成功。
-- 模型调用使用 OpenAI 或兼容的 Chat Completions 接口，要求支持 tool calling。模型名称、密钥、可选 base URL 来自环境变量。
-- 离线 demo 用确定性角色演示一次退回、修订、通过，明确标记为模拟输出。
-- CLI 展示节点进度、最终文本和终止原因；业务模块可直接被其他 TypeScript 项目导入。
-- 首版只生成文本成果，不包含任意代码执行、浏览器操作、HTTP 服务、数据库或跨进程恢复。
+- CLI 注册多个 Git 仓库，每个项目独立配置 setup/check 命令、规则入口和可选模型。
+- 从干净仓库的提交创建独立 worktree；保持原工作区不变。
+- 官方 Codex CLI 执行代码任务，复用本机 Codex 登录；执行器使用 workspace-write，审核使用 read-only；不提供关闭沙箱的参数。
+- LangGraph 组织 prepare → baseline → code → verify → review → finish；验证或审核失败进入有限修复循环。
+- 官方 SQLite checkpointer 持久化图状态；记录阶段结果、agent 会话 ID、调用计数、检查日志、最终 diff。
+- resume 读取同一任务快照和 worktree；复用已完成节点/阶段结果，中断中的 agent 继续原会话并核对当前文件。
+- 原子写入元数据，同一数据目录只允许一个运行进程；可暂停并恢复，超时终止子进程。
+- 检查以 executable + args 配置，默认不使用 shell。仅运行用户注册的本地可信仓库；setup/check 是受信任本机代码，不是恶意仓库隔离环境。
+- 检查必须全通过，独立审核读取实际 diff 和检查结果，才交付 succeeded；保留失败与待处理状态。
+- 交付 worktree、patch、检查结果和报告，用户审阅后自行提交/合并；不自动推送、合并、发布。
 
-## 技术与目录
+## 配置与数据
 
-- Node.js >= 22.9，TypeScript strict，ES modules。
-- `@langchain/langgraph` 1.5.2、`@langchain/core` 1.3.0、`@langchain/openai` 1.7.0、Zod 4.6.7，锁定依赖。
-- `src/contracts.ts`：角色输入输出和校验。
-- `src/graph.ts`：状态图和条件路由。
-- `src/agents/`：真实模型与 demo 实现。
-- `src/cli.ts`：命令行；`src/config.ts`：环境配置。
-- `tests/`：Node 原生测试；`README.md`：安装、运行、扩展和流程图。
+默认数据目录为启动目录下 `.orchestrator/`，可用 `--data-dir` 更改。每次任务保存配置快照、源提交和独立 run ID。修改项目配置不会改变旧任务。
 
-## 命令
+项目规则从仓库读取；项目已有任务文档保持为业务任务来源。编排工具只记录自身执行状态。
 
-```powershell
-npm install
-npm run demo -- "设计一个任务管理系统"
-npm run dev -- "设计一个任务管理系统"
-npm run typecheck
-npm test
-npm run lint
-npm run build
-npm start -- "设计一个任务管理系统"
-```
+## 验收
 
-## 代码约定
+1. 多仓库注册、配置校验、任务隔离和原工作区保护。
+2. 真实 worktree、真实检查、验证失败后修复并重新验证。
+3. SQLite 跨进程恢复；暂停/异常后不重做已完成节点；完成后 resume 不重复执行。
+4. Codex CLI 真实冒烟：修改测试仓库文件、检查通过、独立审核与交付。
+5. 自动化测试覆盖进程终止、输出/时间限制、锁冲突、过期锁、重放边界与失败保留。
+6. typecheck / test / lint / build 通过；区分替身测试和真实模型证据。
 
-使用命名导出、明确的角色契约和依赖注入；函数与变量 camelCase、类型 PascalCase。业务路由由代码决定，模型只提供计划、成果、审核数据。
+## 可靠性边界
 
-```typescript
-const review = ReviewSchema.parse(await agents.review(context, config));
-return { approved: review.approved, feedback: review.feedback };
-```
+setup/check 须可安全重试。任意外部副作用不能承诺 exactly-once；中断于外部动作和持久化之间时先核对工作区。禁止自动提交/发布降低重复副作用风险。单机文件权限和 Codex 沙箱构成首版边界，不宣称团队多租户隔离。
 
-## 验收与测试
+## 首版不包含
 
-- 在真实 LangGraph 上测试首次通过、退回后通过、持续退回到上限。
-- 空目标、非法执行上限、空计划、空成果与非法审核数据必须失败。
-- 模型异常向调用方传播，不能转成成功或静默切换 demo。
-- 重复运行互不污染；离线 demo 无需密钥；CLI 输入错误和配置缺失给出可理解提示。
-- typecheck、tests、lint、build 和编译产物的 demo 运行通过。
-- 真实模型端到端验证需用户提供模型配置；离线通过不等同于真实模型验证。
-
-## 边界
-
-- 始终：校验边界数据、限制循环、保留失败结论、更新文档。
-- 需额外授权：发布远程仓库、部署服务、加入能修改外部系统的工具。
-- 禁止：提交密钥、修改其他项目、隐藏模型错误、把模拟结果描述为真实模型结果。
-
-## 实施顺序
-
-1. 角色契约与状态图：先用测试确认预期分支，再实现和构建。
-2. 模型接入、CLI、离线示例：测试输入/配置，运行真实图的离线完整流程。
-3. 文档与最终检查：记录运行方式和已验证边界。
+Web UI、多人账号、分布式队列、自动发布、远程设备集群、任意不可信仓库。
 
 ## 参考
 
-- https://docs.langchain.com/oss/javascript/langgraph/graph-api
-- https://docs.langchain.com/oss/javascript/langgraph/workflows-agents
-- https://docs.langchain.com/oss/javascript/integrations/chat/openai
+- https://learn.chatgpt.com/docs/codex-sdk
+- https://learn.chatgpt.com/docs/non-interactive-mode
+- https://docs.langchain.com/oss/javascript/langgraph/persistence
+- https://docs.langchain.com/oss/javascript/langgraph/interrupts
