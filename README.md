@@ -1,6 +1,6 @@
 # LangGraph Agents
 
-面向单人本地开发的 TypeScript 编排工具。注册多个 Git 仓库后，由真实 Codex coding agent 在独立 worktree 中修改代码，运行检查，根据失败日志修复，再交给独立只读会话审核。LangGraph 和 SQLite 保存进度，可退出进程后恢复。
+面向单人本地开发的 TypeScript 编排工具，提供本地可视化界面和 CLI。注册多个 Git 仓库后，由真实 Codex coding agent 在独立 worktree 中修改代码，运行检查，根据失败日志修复，再交给独立只读会话审核。LangGraph 和 SQLite 保存进度，可退出进程后恢复。
 
 ```mermaid
 flowchart LR
@@ -32,7 +32,32 @@ node dist/cli.js --help
 
 适配器使用官方 [非交互 JSONL 协议](https://learn.chatgpt.com/docs/non-interactive-mode)，直接管理子进程以支持暂停和超时清理。它保留 Codex 登录，忽略用户 `config.toml` 中的模型、MCP 和插件配置，显式传入工作区权限；用户和项目的执行策略仍生效。自定义 provider 暂不支持。可用 `CODEX_BIN` 指定 Codex 可执行文件路径。
 
-## 注册仓库
+## 启动本地界面
+
+完成上面的构建后运行：
+
+```powershell
+npm run ui
+# 浏览器打开 http://127.0.0.1:4317
+
+# 自定义数据位置或端口
+node dist/cli.js serve --data-dir D:\agent-data --port 4318
+```
+
+1. 左侧添加仓库，填写唯一标识和 Git 仓库绝对路径；配置安装命令、检查命令、规则文件及可选模型。参数填写 JSON 数组，例如 `["run", "test"]`。
+2. 点击「创建任务」，选择仓库，写明目标与验收要求，设置编码轮数、调用预算和超时。可以立即执行，也可以取消勾选后保存为待执行。
+3. 任务详情显示执行阶段、调用次数、检查退出码、执行时间线和实时日志；「交付文件」可下载 patch 和报告，查看独立工作区位置。
+4. 运行时点击「暂停任务」，等状态变为「已暂停」后可切换其他任务。点击「恢复任务」继续未完成动作；成功或失败终态需创建新任务。
+
+页面约每秒刷新，任务列表显示最近 200 项；日志每次读取最多 64 KB，可以向前翻阅、停止跟随或下载完整文件。阶段轨道反映实际阶段，不估算完成百分比。界面与 CLI 使用同一个 `--data-dir` 时共享项目、任务和恢复记录；旧任务没有新增的时间线历史时会明确提示。
+
+同一数据目录仍只执行一个任务，已保存的任务不会自动排队启动。关闭浏览器不会停止执行；在运行服务的终端按 Ctrl+C 会先暂停它启动的任务再退出。重启服务后可查看记录并手动恢复。若进程被强制终止，先检查界面状态和旧进程，避免重复启动。由独立 CLI 启动的任务可以在页面查看和请求暂停，但关闭界面服务不会代替你终止该 CLI。
+
+编辑仓库配置只影响以后创建的任务。移除仓库注册保留源文件、任务和工作区，可用相同标识重新注册。已有任务继续使用原配置快照。
+
+服务仅监听 `127.0.0.1`，校验 Host、Origin 和写请求会话令牌；没有远程账号体系，请使用打印的精确地址访问。它是本机开发界面，保持本地访问，不经代理公开到网络。
+
+## 用 CLI 注册仓库
 
 为项目准备 JSON 配置，按实际项目修改命令；模型不能改变任务保存的命令配置。
 
@@ -136,6 +161,6 @@ npm run lint
 npm run build
 ```
 
-自动化测试使用临时 Git 仓库、真实命令、SQLite 和独立进程；agent 使用可控替身，不消耗模型额度。真实 Codex 证据另见 `VALIDATION.md`。接口在 `src/domain.ts`，流程在 `src/workflow.ts`，Codex 适配器在 `src/codex.ts`，不含具体业务项目逻辑。
+自动化测试使用临时 Git 仓库、真实命令、SQLite 和独立进程；agent 使用可控替身，不消耗模型额度。真实 Codex 和浏览器交互证据另见 `VALIDATION.md`。接口在 `src/domain.ts`，流程在 `src/workflow.ts`，Codex 适配器在 `src/codex.ts`，HTTP 与工作进程管理在 `src/dashboard/`，React 界面在 `web/`，不含具体业务项目逻辑。修改界面后重新 `npm run build` 并刷新页面，修改服务端后需重启服务。
 
 持久化采用 [LangGraph persistence](https://docs.langchain.com/oss/javascript/langgraph/persistence) 和官方 SQLite checkpointer。状态格式仍处于 0.x 阶段，升级前保留备份，不支持旧文本原型的数据迁移。

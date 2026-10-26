@@ -44,6 +44,7 @@ export const RunSchema = z.object({
   phase: z.string().default("created"),
   error: z.string().default(""),
   childPid: z.number().int().optional(),
+  ownerPid: z.number().int().optional(),
 });
 
 export const CheckResultSchema = z.object({

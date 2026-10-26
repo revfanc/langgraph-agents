@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { createCodexAgent } from "./codex.js";
+import { startDashboard } from "./dashboard/server.js";
 import { executeRun, requestPause } from "./runner.js";
 import { Store } from "./storage.js";
 import { type Phase, phases } from "./workflow.js";
@@ -21,6 +22,7 @@ async function main() {
       "max-agent-calls": { type: "string" },
       "agent-timeout-ms": { type: "string" },
       "pause-after": { type: "string" },
+      port: { type: "string" },
     },
   });
   if (values.help || !positionals.length) {
@@ -28,6 +30,7 @@ async function main() {
 
 projects add <id> --repo <仓库绝对路径> --config <项目配置.json>
 projects list                         列出已注册仓库
+serve [--port 4317]                    启动本地可视化界面
 run <project> --task "任务"            创建隔离任务并执行
 resume <run-id>                        从检查点继续
 status <run-id>                        查看状态和产物位置
@@ -44,6 +47,28 @@ pause <run-id>                         请求正在运行的任务暂停
   const store = new Store(resolve(values["data-dir"] ?? ".orchestrator"));
   const [command, target, id] = positionals;
   try {
+    if (command === "serve") {
+      const port = Number(values.port ?? 4317);
+      if (!Number.isInteger(port) || port < 1 || port > 65535)
+        throw new Error("端口必须为 1–65535。");
+      const dashboard = await startDashboard(store, { port });
+      console.log(
+        `本地开发台：${dashboard.url}\n数据目录：${store.root}\nCtrl+C 暂停本服务的任务并退出。`,
+      );
+      await new Promise<void>((resolve, reject) => {
+        let stopping = false;
+        const stop = () => {
+          if (stopping) return;
+          stopping = true;
+          process.off("SIGINT", stop);
+          process.off("SIGTERM", stop);
+          void dashboard.close().then(resolve, reject);
+        };
+        process.on("SIGINT", stop);
+        process.on("SIGTERM", stop);
+      });
+      return;
+    }
     if (command === "projects" && target === "add") {
       if (!id || !values.repo || !values.config)
         throw new Error("需要项目 id、--repo 与 --config。");

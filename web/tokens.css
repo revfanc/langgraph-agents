@@ -1,0 +1,11 @@
+:root {
+  --ink: #152641;
+  --slate: #56637c;
+  --blue: #315ce8;
+  --mist: #eff3f8;
+  --line: #e0e6f0;
+  --display: "Bahnschrift", "Microsoft YaHei UI", sans-serif;
+  --body: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+  --mono: "Cascadia Code", "Consolas", monospace;
+  color-scheme: light;
+}

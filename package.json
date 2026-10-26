@@ -1,6 +1,6 @@
 {
   "name": "langgraph-agents",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Local multi-repository coding orchestration with LangGraph and Codex",
   "type": "module",
@@ -11,8 +11,10 @@
     "dev": "tsx src/cli.ts",
     "start": "node dist/cli.js",
     "prebuild": "node scripts/clean-build.mjs",
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.check.json",
+    "build": "tsc -p tsconfig.json && vite build",
+    "ui": "node dist/cli.js serve",
+    "ui:build": "vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.check.json && tsc -p web/tsconfig.json",
     "test": "tsx --test tests/*.test.ts",
     "lint": "biome check .",
     "format": "biome check --write ."
@@ -22,13 +24,20 @@
     "@langchain/langgraph": "1.5.2",
     "@langchain/langgraph-checkpoint-sqlite": "1.1.0",
     "cross-spawn": "7.0.6",
+    "lucide-react": "1.61.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.3",
     "@types/cross-spawn": "6.0.6",
     "@types/node": "26.6.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
     "tsx": "4.23.15",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "vite": "8.3.5"
   }
 }

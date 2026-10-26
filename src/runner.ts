@@ -39,7 +39,12 @@ export async function executeRun(
     timer = setInterval(() => {
       if (existsSync(marker)) controller.abort(new Error("用户请求暂停"));
     }, 200);
-    store.updateRun(id, { status: "running", error: "", childPid: undefined });
+    store.updateRun(id, {
+      status: "running",
+      error: "",
+      childPid: undefined,
+      ownerPid: process.pid,
+    });
     const graph = createWorkflow(store, run, agent, signal, options);
     const config = {
       configurable: { thread_id: id },
@@ -70,6 +75,8 @@ export async function executeRun(
     });
   } finally {
     if (timer) clearInterval(timer);
+    if (store.run(id).ownerPid === process.pid)
+      store.updateRun(id, { ownerPid: undefined });
     release();
   }
 }
